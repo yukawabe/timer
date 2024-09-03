@@ -3,31 +3,36 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from './components/ui/alert';
 
 const WorkoutTimer = () => {
-  const [workTime, setWorkTime] = useState(45);
-  const [restTime, setRestTime] = useState(20);
-  const [sets, setSets] = useState(8);
+  const [workTime, setWorkTime] = useState(30);
+  const [restTime, setRestTime] = useState(15);
+  const [sets, setSets] = useState(1);
   const [currentSet, setCurrentSet] = useState(1);
   const [isWorking, setIsWorking] = useState(true);
-  const [time, setTime] = useState(45);
+  const [time, setTime] = useState(30);
   const [isActive, setIsActive] = useState(false);
-  const [week, setWeek] = useState(1);
+  const [selectedOption, setSelectedOption] = useState('free');
+  const [isPreparing, setIsPreparing] = useState(false);
   const audioRef = useRef(null);
 
-  const weekSettings = [
-    { workTime: 45, restTime: 20, sets: 8 },
-    { workTime: 35, restTime: 25, sets: 8 },
-    { workTime: 25, restTime: 10, sets: 8 },
-  ];
+  const allSettings = {
+    free: { workTime: 30, restTime: 15, sets: 8 },
+    kickboxing1: { workTime: 180, restTime: 60, sets: 8 },
+    kickboxing2: { workTime: 50, restTime: 10, sets: 8 },
+    week1: { workTime: 45, restTime: 20, sets: 8 },
+    week2: { workTime: 35, restTime: 25, sets: 8 },
+    week3: { workTime: 25, restTime: 10, sets: 8 },
+  };
 
   // 音声ファイルを初期化時にロード
   useEffect(() => {
-    audioRef.current = new Audio('./countdown.mp3');
+    audioRef.current = new Audio(`${process.env.PUBLIC_URL}/countdown.mp3`);
     audioRef.current.load();
   }, []);
 
   const resetTimer = useCallback((newWorkTime) => {
     setIsActive(false);
     setIsWorking(true);
+    setIsPreparing(false);
     setCurrentSet(1);
     setTime(newWorkTime);
   }, []);
@@ -40,7 +45,11 @@ const WorkoutTimer = () => {
       }, 1000);
     } else if (time === 0) {
       clearInterval(interval);
-      if (isWorking) {
+      if (isPreparing) {
+        setIsPreparing(false);
+        setIsWorking(true);
+        setTime(workTime);
+      } else if (isWorking) {
         if (currentSet < sets) {
           setIsWorking(false);
           setTime(restTime);
@@ -54,7 +63,7 @@ const WorkoutTimer = () => {
       }
     }
     return () => clearInterval(interval);
-  }, [isActive, time, isWorking, currentSet, sets, workTime, restTime]);
+  }, [isActive, time, isWorking, currentSet, sets, workTime, restTime, isPreparing]);
 
   useEffect(() => {
     if (time === 3 && audioRef.current) {
@@ -64,14 +73,14 @@ const WorkoutTimer = () => {
 
   const startTimer = () => {
     setIsActive(true);
-    setIsWorking(true);
+    setIsPreparing(true);
     setCurrentSet(1);
-    setTime(workTime);
+    setTime(5);  // 5秒のカウントダウンから開始
   };
 
-  const changeWeek = (newWeek) => {
-    setWeek(newWeek);
-    const { workTime: newWorkTime, restTime: newRestTime, sets: newSets } = weekSettings[newWeek - 1];
+  const changeOption = (newOption) => {
+    setSelectedOption(newOption);
+    const { workTime: newWorkTime, restTime: newRestTime, sets: newSets } = allSettings[newOption];
     setWorkTime(newWorkTime);
     setRestTime(newRestTime);
     setSets(newSets);
@@ -79,23 +88,37 @@ const WorkoutTimer = () => {
   };
 
   const getProgress = () => {
-    const total = isWorking ? workTime : restTime;
+    const total = isPreparing ? 5 : (isWorking ? workTime : restTime);
     return ((total - time) / total) * 100;
   };
+
+  const getProgressColor = () => {
+    if (isPreparing) return 'text-yellow-500';
+    return isWorking ? 'text-blue-500' : 'text-green-500';
+  };
+
+  const renderOptionButton = (key, label) => (
+    <button
+      key={key}
+      onClick={() => changeOption(key)}
+      className={`mx-1 my-1 px-3 py-1 rounded ${selectedOption === key ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div className="p-4 max-w-md mx-auto">
       <h1 className="text-2xl font-bold mb-4 text-center">ワークアウトタイマー</h1>
+      <div className="mb-2 flex justify-center">
+        {renderOptionButton('free', '体験')}
+        {renderOptionButton('kickboxing1', 'キック1')}
+        {renderOptionButton('kickboxing2', 'キック2')}
+      </div>
       <div className="mb-4 flex justify-center">
-        {[1, 2, 3].map((w) => (
-          <button
-            key={w}
-            onClick={() => changeWeek(w)}
-            className={`mx-1 px-3 py-1 rounded ${week === w ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-          >
-            {w}週目
-          </button>
-        ))}
+        {renderOptionButton('week1', '1周目')}
+        {renderOptionButton('week2', '2周目')}
+        {renderOptionButton('week3', '3周目')}
       </div>
       <div className="mb-4 text-center">
         <p>ワークアウト: {workTime}秒 / 休憩: {restTime}秒 / セット: {sets}</p>
@@ -111,7 +134,7 @@ const WorkoutTimer = () => {
             fill="transparent"
           />
           <circle
-            className={`${isWorking ? 'text-blue-500' : 'text-green-500'} stroke-current`}
+            className={`${getProgressColor()} stroke-current`}
             strokeWidth="10"
             strokeLinecap="round"
             cx="50"
@@ -128,7 +151,9 @@ const WorkoutTimer = () => {
         </svg>
       </div>
       <div className="mb-4 text-center">
-        <p className="text-lg font-semibold">{isWorking ? 'ワークアウト中' : '休憩中'}</p>
+        <p className="text-lg font-semibold">
+          {isPreparing ? '準備中' : (isWorking ? 'ワークアウト中' : '休憩中')}
+        </p>
         <p>セット: {currentSet} / {sets}</p>
       </div>
       <div className="mb-4 flex justify-center">
